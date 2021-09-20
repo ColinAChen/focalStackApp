@@ -2,6 +2,8 @@ import cv2
 import numpy as np
 import time
 
+import matplotlib.pyplot as plt
+
 from fast_slic import Slic
 from PIL import Image
 '''
@@ -35,31 +37,56 @@ For super pixel, check which canny lines they are surroudned by, match the major
 '''
 
 
-PATH1 = 'golf1.jpg'#'1.jpg'
-PATH2 = 'golf2.jpg'#'2.jpg'
-SAVE_PATH = 'golf_combine.jpg'#'slic30_average_compact.jpg'#'neighbors_zstack_pullmap_100x100_thresh.png'
+PATH1 = '1.jpg'#'1.jpg'
+PATH2 = '2.jpg'#'2.jpg'
+SAVE_PATH = 'reverse_warp_combine.jpg'#'golf_combine.jpg'#'slic30_average_compact.jpg'#'neighbors_zstack_pullmap_100x100_thresh.png'
 PULL_PATH = 'pullMap_thresh_100x100.png'
 def main():
 
-	image1 = cv2.imread(PATH1)
-	image2 = cv2.imread(PATH2)
-	rows, cols, channels = image1.shape
-	#average = (image1 + image2)/510
-	#average = cv2.resize(average, (int(cols/4),int(rows/4) ))
-	#showImage(average, 'average')
-	#pullMap = cv2.imread(PULL_PATH,cv2.IMREAD_GRAYSCALE)
-	#print(pullMap.shape)
-	#showImage(pullMap*255)
-	#zstack = combine(image1, image2,pullMap)
-	zstack = combine(image1, image2)
-	#showImage(zstack)
-	#blurZstack = cv2.GaussianBlur(zstack, (7,7),0)
-
-	cv2.imwrite(SAVE_PATH, zstack)
+    image1 = cv2.imread(PATH1)
+    image2 = cv2.imread(PATH2)
+    rows, cols, channels = image1.shape
+    #showImage(image1-image2,'sub')
+    #average = (image1 + image2)/510
+    #average = cv2.resize(average, (int(cols/4),int(rows/4) ))
+    #showImage(average, 'average')
+    #pullMap = cv2.imread(PULL_PATH,cv2.IMREAD_GRAYSCALE)
+    #print(pullMap.shape)
+    #showImage(pullMap*255)
+    #zstack = combine(image1, image2,pullMap)
+    
+    M = crop(image1, image2)
+    Minv = np.linalg.inv(M)
+    dim = (image1.shape[1],image1.shape[0])
+    image3 = cv2.warpPerspective(image1, M, dim)
+    
+    #showImage(image1)
+    #showImage(image2)
+    #showImage(image3, 'warped')
+    #print(image3)
+    #print(image3.shape)
+    #diff1 = image1 - image3
+    
+    diff2 = image2 - image3
+    
+    #print(np.amin(diff2))
+    #showImage(diff1, 'sub1')
+    #showImage(diff2, 'sub2')
+    
+    #zstack = combine(image1, image2)
+    # image1 gets warped to image2 (wider fov) 
+    zstack = combine(image3, image2)
+    #showImage(zstack)
+    #blurZstack = cv2.GaussianBlur(zstack, (7,7),0)
+    reverseProj = cv2.warpPerspective(zstack, Minv, dim)
+    showImage(reverseProj/255)
+    #cv2.imwrite(SAVE_PATH, zstack)
+    cv2.imwrite(SAVE_PATH, reverseProj)
 def combine(image1, image2, pullMap = None):
         grad1 = getEdges(image1,method='sobel')
         grad2 = getEdges(image2,method='sobel')
-        showImage(grad1)
+        #showImage(grad1)
+        print('showImage done')
 	#showImage(grad1)
 	#showImage(grad2)
         out = np.zeros(image1.shape)
@@ -92,7 +119,6 @@ def combine(image1, image2, pullMap = None):
         cv2.imwrite('assignment1.jpg', assignment1)
         cv2.imwrite('assignment2.jpg', assignment2)
         #showImage(assignment1/255,resize=False)
-        
         #if pullMap is None:
         # default to second image, 
         pullMap1 = np.zeros(image1.shape[:2])
@@ -127,9 +153,9 @@ def combine(image1, image2, pullMap = None):
             
 	
         #pullMap = processPullMap(pullMap)
-        showImage(pullMap1*255)
+        #showImage(pullMap1*255)
         cv2.imwrite('pullmap1.jpg', pullMap1*255)
-        showImage(pullMap2*255)
+        #showImage(pullMap2*255)
         cv2.imwrite('pullmap2.jpg', pullMap2*255)
 
 	# blurSobel[row][col] = amount from image 1 vs image 2
@@ -291,21 +317,22 @@ def processPullMap(pullMap):
 	return closing
 
 def showImage(image, title='image', resize=True):
-	imageShape = image.shape
-	rows = imageShape[0]
-	cols = imageShape[1]
-	if resize:
-		newRows = int(rows/4)
-		newCols = int(cols/4)
-		showImage = cv2.resize(image,(newCols, newRows))
-	else:
-		showImage = image
-	cv2.imshow(title, showImage)
-	cv2.waitKey(0)
-	cv2.destroyAllWindows()
+    imageShape = image.shape
+    rows = imageShape[0]
+    cols = imageShape[1]
+    if resize:
+        newRows = int(rows/4)
+        newCols = int(cols/4)
+        showImage = cv2.resize(image,(newCols, newRows))
+    else:
+        showImage = image
+    cv2.imshow(title, showImage)
+    cv2.waitKey(0)
+    cv2.destroyAllWindows()
 
 '''
 Assume image1 is with closer objects in focus and image2 is for farther objects
+https://docs.opencv.org/3.0-beta/doc/py_tutorials/py_feature2d/py_feature_homography/py_feature_homography.html
 '''
 def crop(image1, image2):
     # we should know which one is closer
@@ -315,7 +342,59 @@ def crop(image1, image2):
     
     # same lightfield, there shouldn't be any information that one view can see that the other cannot
     # same points map to different pixels
-    pass
+    
+    # do we want to downsample the larger to the smaller?
+    # find homography that maps 
+    
+    # use smaller image as a template, crop bigger one based on this
+    img1 = cv2.cvtColor(image1, cv2.COLOR_BGR2GRAY)
+    img2 = cv2.cvtColor(image2, cv2.COLOR_BGR2GRAY)
+    sift = cv2.SIFT_create()
+    # find the keypoints and descriptors with SIFT
+    kp1, des1 = sift.detectAndCompute(img1,None)
+    kp2, des2 = sift.detectAndCompute(img2,None)
+    FLANN_INDEX_KDTREE = 0
+    index_params = dict(algorithm = FLANN_INDEX_KDTREE, trees = 5)
+    search_params = dict(checks = 50)
 
+    flann = cv2.FlannBasedMatcher(index_params, search_params)
+
+    matches = flann.knnMatch(des1,des2,k=2)
+
+    # store all the good matches as per Lowe's ratio test.
+    good = []
+    for m,n in matches:
+        if m.distance < 0.7*n.distance:
+            good.append(m)
+
+    MIN_MATCH_COUNT = 10
+
+    if len(good)>MIN_MATCH_COUNT:
+        src_pts = np.float32([ kp1[m.queryIdx].pt for m in good ]).reshape(-1,1,2)
+        dst_pts = np.float32([ kp2[m.trainIdx].pt for m in good ]).reshape(-1,1,2)
+
+        M, mask = cv2.findHomography(src_pts, dst_pts, cv2.RANSAC,5.0)
+        #print(M)
+        #print(mask)
+        matchesMask = mask.ravel().tolist()
+
+        h,w = img1.shape
+        pts = np.float32([ [0,0],[0,h-1],[w-1,h-1],[w-1,0] ]).reshape(-1,1,2)
+        dst = cv2.perspectiveTransform(pts,M)
+        #print(dst)
+        img2 = cv2.polylines(img2,[np.int32(dst)],True,255,3, cv2.LINE_AA)
+
+    else:
+        print ("Not enough matches are found - %d/%d" % (len(good),MIN_MATCH_COUNT))
+        matchesMask = None
+    draw_params = dict(matchColor = (0,255,0), # draw matches in green color
+                       singlePointColor = None,
+                       matchesMask = matchesMask, # draw only inliers
+                       flags = 2)
+
+    img3 = cv2.drawMatches(img1,kp1,img2,kp2,good,None,**draw_params)
+
+    #plt.imshow(img3, 'gray'),plt.show()
+    return M#cv2.warpPerspective(img1, M, (img1.shape[1],img1.shape[0])) 
 if __name__=='__main__':
 	main()
