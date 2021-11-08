@@ -6,3 +6,10 @@ My high level idea was to take two images taken with different focal distances a
 
 ### Android App
 Under development. I plan to let the Google Pixel to the heavy lifting and grab two or more images at the end of the ISP pipeline. I plan on using OpenCV with Android Studio.
+
+### Examples
+| Focal Position 1 | Focal Position 2 | Composite |
+:-------------------------:|:-------------------------:|:-------------------------:
+![](samples/room_1.jpg) | ![](samples/room_2.jpg) | ![](samples/room_combine.jpg)
+![](samples/gate_1.jpg) | ![](samples/gate_2.jpg) | ![](samples/gate_combine.jpg)
+![](samples/leaf_1.jpg) | ![](samples/leaf_2.jpg) | ![](samples/leaf_combine.jpg)
